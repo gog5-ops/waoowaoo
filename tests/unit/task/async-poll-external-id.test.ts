@@ -50,4 +50,14 @@ describe('async poll externalId contract', () => {
     expect(parsed.type).toBe('IMAGE')
     expect(parsed.requestId).toBe('task_456')
   })
+
+  it('parses and formats BRIDGE externalId', () => {
+    const externalId = formatExternalId('BRIDGE', 'VIDEO', 'bridge_task_123')
+    expect(externalId).toBe('BRIDGE:VIDEO:bridge_task_123')
+
+    const parsed = parseExternalId(externalId)
+    expect(parsed.provider).toBe('BRIDGE')
+    expect(parsed.type).toBe('VIDEO')
+    expect(parsed.requestId).toBe('bridge_task_123')
+  })
 })

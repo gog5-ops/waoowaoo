@@ -187,6 +187,7 @@ const PRICING_PROVIDER_ALIASES: Readonly<Record<string, string>> = {
 }
 const OPTIONAL_PRICING_PROVIDER_KEYS = new Set([
   'openai-compatible',
+  'flow-bridge',
   'gemini-compatible',
   'bailian',
   'siliconflow',
@@ -472,6 +473,7 @@ function resolveProviderGatewayRoute(
   const providerKey = getProviderKey(providerId)
   const isOpenAICompatibleProvider = providerKey === 'openai-compatible'
   const isGeminiCompatibleProvider = providerKey === 'gemini-compatible'
+  const isFlowBridgeProvider = providerKey === 'flow-bridge'
 
   if (rawGatewayRoute !== undefined && !isGatewayRoute(rawGatewayRoute)) {
     throw new ApiError('INVALID_PARAMS', {
@@ -489,6 +491,15 @@ function resolveProviderGatewayRoute(
   }
 
   if (isGeminiCompatibleProvider) {
+    if (rawGatewayRoute === 'openai-compat') {
+      throw new ApiError('INVALID_PARAMS', {
+        code: 'PROVIDER_GATEWAY_ROUTE_INVALID',
+      })
+    }
+    return 'official'
+  }
+
+  if (isFlowBridgeProvider) {
     if (rawGatewayRoute === 'openai-compat') {
       throw new ApiError('INVALID_PARAMS', {
         code: 'PROVIDER_GATEWAY_ROUTE_INVALID',

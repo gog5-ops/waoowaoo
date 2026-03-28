@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createAudioGenerator, createImageGenerator, createVideoGenerator } from '@/lib/generators/factory'
+import { FlowBridgeImageGenerator } from '@/lib/generators/image/flow-bridge'
+import { FlowBridgeVideoGenerator } from '@/lib/generators/video/flow-bridge'
 import { GoogleVeoVideoGenerator } from '@/lib/generators/video/google'
 import { OpenAICompatibleVideoGenerator } from '@/lib/generators/video/openai-compatible'
 import { BailianAudioGenerator, BailianImageGenerator, BailianVideoGenerator, SiliconFlowAudioGenerator } from '@/lib/generators/official'
@@ -18,5 +20,10 @@ describe('generator factory', () => {
 
   it('routes siliconflow audio provider to official generator', () => {
     expect(createAudioGenerator('siliconflow')).toBeInstanceOf(SiliconFlowAudioGenerator)
+  })
+
+  it('routes flow-bridge providers to bridge generators', () => {
+    expect(createImageGenerator('flow-bridge')).toBeInstanceOf(FlowBridgeImageGenerator)
+    expect(createVideoGenerator('flow-bridge')).toBeInstanceOf(FlowBridgeVideoGenerator)
   })
 })

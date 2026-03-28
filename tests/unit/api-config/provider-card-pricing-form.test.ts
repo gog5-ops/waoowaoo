@@ -14,6 +14,10 @@ describe('provider card pricing form behavior', () => {
     expect(getAddableModelTypesForProvider('openai-compatible:oa-1')).toEqual(['llm', 'image', 'video'])
   })
 
+  it('allows flow-bridge provider to add image/video only', () => {
+    expect(getAddableModelTypesForProvider('flow-bridge')).toEqual(['image', 'video'])
+  })
+
   it('shows llm/image/video tabs by default for openai-compatible even with only image models', () => {
     const visible = getVisibleModelTypesForProvider(
       'openai-compatible:oa-1',

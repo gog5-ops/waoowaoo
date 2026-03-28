@@ -97,4 +97,27 @@ describe('provider test connection compatible probes', () => {
     expect(result.steps[1]?.status).toBe('skip')
     expect(result.steps.length).toBe(2)
   })
+
+  it('tests flow-bridge provider via health endpoint', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === 'https://bridge.example.com/health') {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      }
+      return new Response('not-found', { status: 404 })
+    })
+
+    const result = await testProviderConnection({
+      apiType: 'flow-bridge',
+      baseUrl: 'https://bridge.example.com',
+      apiKey: 'bridge-key',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.steps[0]).toEqual({
+      name: 'models',
+      status: 'pass',
+      message: 'Flow Bridge reachable',
+    })
+  })
 })

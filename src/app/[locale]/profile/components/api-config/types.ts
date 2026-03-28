@@ -200,6 +200,7 @@ export function isPresetComingSoonModelKey(modelKey: string): boolean {
 export const PRESET_PROVIDERS: Omit<Provider, 'apiKey' | 'hasApiKey'>[] = [
     { id: 'ark', name: 'Volcengine Ark' },
     { id: 'google', name: 'Google AI Studio' },
+    { id: 'flow-bridge', name: 'Flow Bridge' },
     { id: 'bailian', name: 'Alibaba Bailian' },
     { id: 'openrouter', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1' },
     { id: 'minimax', name: 'MiniMax Hailuo', baseUrl: 'https://api.minimaxi.com/v1' },
@@ -209,6 +210,7 @@ export const PRESET_PROVIDERS: Omit<Provider, 'apiKey' | 'hasApiKey'>[] = [
 
 const ZH_PROVIDER_NAME_MAP: Record<string, string> = {
     ark: '火山引擎 Ark',
+    'flow-bridge': 'Flow Bridge',
     minimax: '海螺 MiniMax',
     vidu: '生数科技 Vidu',
     bailian: '阿里云百炼',
@@ -353,6 +355,14 @@ export const PROVIDER_TUTORIALS: ProviderTutorial[] = [
             {
                 text: 'vidu_step1',
                 url: 'https://platform.vidu.cn/api-keys'
+            }
+        ]
+    },
+    {
+        providerId: 'flow-bridge',
+        steps: [
+            {
+                text: 'flow_bridge_step1'
             }
         ]
     },

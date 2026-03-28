@@ -172,6 +172,7 @@ export async function resolveImageSourceFromGeneration(
       resolution?: string
       size?: string
       provider?: string
+      projectId?: string
     }
     allowTaskExternalIdResume?: boolean
     pollProgress?: { start?: number; end?: number }
@@ -232,6 +233,7 @@ export async function resolveImageSourceFromGeneration(
     { projectId: job.data.projectId, taskId: job.data.taskId, userId: params.userId },
     () => generateImage(params.userId, params.modelId, params.prompt, {
       ...params.options,
+      projectId: job.data.projectId,
       ...capabilityOptions,
     }),
   )
@@ -291,6 +293,7 @@ export async function resolveVideoSourceFromGeneration(
       generateAudio?: boolean
       lastFrameImageUrl?: string
       generationMode?: 'normal' | 'firstlastframe'
+      projectId?: string
       [key: string]: string | number | boolean | undefined
     }
     pollProgress?: { start?: number; end?: number }
@@ -365,6 +368,7 @@ export async function resolveVideoSourceFromGeneration(
     { projectId: job.data.projectId, taskId: job.data.taskId, userId: params.userId },
     () => generateVideo(params.userId, params.modelId, params.imageUrl, {
       ...providerRequestOptions,
+      projectId: job.data.projectId,
       ...providerCapabilityOptions,
     }),
   )

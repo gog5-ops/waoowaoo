@@ -47,7 +47,7 @@ function getErrorMessage(error: unknown): string {
  * 解析 externalId 获取 provider、type 和请求信息
  */
 export function parseExternalId(externalId: string): {
-    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'UNKNOWN'
+    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'BRIDGE' | 'UNKNOWN'
     type: 'VIDEO' | 'IMAGE' | 'BATCH' | 'UNKNOWN'
     endpoint?: string
     requestId: string
@@ -209,9 +209,23 @@ export function parseExternalId(externalId: string): {
         }
     }
 
+    if (externalId.startsWith('BRIDGE:')) {
+        const parts = externalId.split(':')
+        const type = parts[1]
+        const requestId = parts.slice(2).join(':')
+        if ((type !== 'VIDEO' && type !== 'IMAGE') || !requestId) {
+            throw new Error(`无效 BRIDGE externalId: "${externalId}"，应为 BRIDGE:TYPE:taskId`)
+        }
+        return {
+            provider: 'BRIDGE',
+            type: type as 'VIDEO' | 'IMAGE',
+            requestId,
+        }
+    }
+
     throw new Error(
         `无法识别的 externalId 格式: "${externalId}". ` +
-        `支持的格式: FAL:TYPE:endpoint:requestId, ARK:TYPE:requestId, GEMINI:BATCH:batchName, GOOGLE:VIDEO:operationName, MINIMAX:TYPE:taskId, VIDU:TYPE:taskId, OPENAI:VIDEO:providerToken:videoId, OCOMPAT:TYPE:providerToken:modelKeyToken:taskId, BAILIAN:TYPE:requestId, SILICONFLOW:TYPE:requestId`
+        `支持的格式: FAL:TYPE:endpoint:requestId, ARK:TYPE:requestId, GEMINI:BATCH:batchName, GOOGLE:VIDEO:operationName, MINIMAX:TYPE:taskId, VIDU:TYPE:taskId, OPENAI:VIDEO:providerToken:videoId, OCOMPAT:TYPE:providerToken:modelKeyToken:taskId, BAILIAN:TYPE:requestId, SILICONFLOW:TYPE:requestId, BRIDGE:TYPE:taskId`
     )
 }
 
@@ -251,6 +265,8 @@ export async function pollAsyncTask(
             return await pollBailianTask(parsed.requestId, userId)
         case 'SILICONFLOW':
             return await pollSiliconFlowTask(parsed.requestId)
+        case 'BRIDGE':
+            return await pollBridgeTask(parsed.type, parsed.requestId, userId)
         default:
             // 🔥 移除 fallback：未知 provider 直接抛出错误
             throw new Error(`未知的 Provider: ${parsed.provider}`)
@@ -405,6 +421,71 @@ async function pollOCompatTask(
             error: typeof errorRaw === 'string' && errorRaw.trim() ? errorRaw.trim() : `OCOMPAT task failed: ${status}`,
         }
     }
+    return { status: 'pending' }
+}
+
+async function pollBridgeTask(
+    type: 'VIDEO' | 'IMAGE' | 'BATCH' | 'UNKNOWN',
+    taskId: string,
+    userId: string,
+): Promise<PollResult> {
+    const config = await getProviderConfig(userId, 'flow-bridge')
+    if (!config.baseUrl) {
+        throw new Error('PROVIDER_BASE_URL_MISSING: flow-bridge')
+    }
+
+    const baseUrl = config.baseUrl.replace(/\/+$/, '')
+    const response = await fetch(`${baseUrl}/v1/tasks/${encodeURIComponent(taskId)}`, {
+        headers: {
+            Authorization: `Bearer ${config.apiKey}`,
+        },
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+        return {
+            status: 'failed',
+            error: `BRIDGE task request failed: ${response.status}`,
+        }
+    }
+
+    const status = typeof payload?.status === 'string' ? payload.status.trim().toLowerCase() : ''
+    if (status === 'queued' || status === 'preflight' || status === 'running' || status === 'uploading' || status === 'downloading' || status === 'waiting_flow_result' || status === 'submitting_to_flow' || status === 'acquiring_captcha_token' || status === 'syncing_session_token') {
+        return { status: 'pending' }
+    }
+    if (status === 'failed' || status === 'cancelled') {
+        const errorMessage =
+            typeof payload?.error?.message === 'string' ? payload.error.message
+            : typeof payload?.error === 'string' ? payload.error
+            : `BRIDGE task ${status}`
+        return { status: 'failed', error: errorMessage }
+    }
+    if (status === 'completed') {
+        const assetId = typeof payload?.result?.asset_id === 'string' ? payload.result.asset_id : ''
+        if (!assetId) {
+            return { status: 'failed', error: 'BRIDGE task completed without asset_id' }
+        }
+        const assetResponse = await fetch(`${baseUrl}/v1/assets/${encodeURIComponent(assetId)}`, {
+            headers: {
+                Authorization: `Bearer ${config.apiKey}`,
+            },
+        })
+        const assetPayload = await assetResponse.json().catch(() => ({}))
+        if (!assetResponse.ok) {
+            return { status: 'failed', error: `BRIDGE asset request failed: ${assetResponse.status}` }
+        }
+        const resultUrl =
+            typeof assetPayload?.public_url === 'string' ? assetPayload.public_url
+            : typeof assetPayload?.source_url === 'string' ? assetPayload.source_url
+            : ''
+        if (!resultUrl) {
+            return { status: 'failed', error: 'BRIDGE asset missing public_url/source_url' }
+        }
+        return type === 'VIDEO'
+            ? { status: 'completed', resultUrl, videoUrl: resultUrl }
+            : { status: 'completed', resultUrl, imageUrl: resultUrl }
+    }
+
     return { status: 'pending' }
 }
 
@@ -948,7 +1029,7 @@ async function queryViduTaskStatus(
  * 创建标准格式的 externalId
  */
 export function formatExternalId(
-    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW',
+    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'BRIDGE',
     type: 'VIDEO' | 'IMAGE' | 'BATCH',
     requestId: string,
     endpoint?: string,

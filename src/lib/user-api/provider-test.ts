@@ -20,7 +20,7 @@ export interface TestProviderResult {
 type PresetProviderType = 'ark' | 'google' | 'openrouter' | 'minimax' | 'fal' | 'vidu'
   | 'bailian'
   | 'siliconflow'
-type CompatibleProviderType = 'openai-compatible' | 'gemini-compatible'
+type CompatibleProviderType = 'openai-compatible' | 'gemini-compatible' | 'flow-bridge'
 
 type TestProviderPayload = {
   apiType: CompatibleProviderType | PresetProviderType
@@ -329,6 +329,46 @@ async function testCompatibleProvider(baseUrl: string, apiKey: string, llmModel?
   return {
     success: llmStep.status === 'pass',
     steps,
+  }
+}
+
+async function testFlowBridgeProvider(baseUrl: string, apiKey: string): Promise<TestProviderResult> {
+  const steps: TestStep[] = []
+
+  try {
+    const response = await fetch(`${sanitizeBaseUrl(baseUrl)}/health`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      signal: AbortSignal.timeout(15_000),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '')
+      steps.push({
+        name: 'models',
+        status: 'fail',
+        message: `HTTP ${response.status}`,
+        detail: errorText.slice(0, 500),
+      })
+      return { success: false, steps }
+    }
+
+    const data = await response.json().catch(() => ({})) as { ok?: unknown }
+    steps.push({
+      name: 'models',
+      status: data && data.ok === true ? 'pass' : 'skip',
+      message: data && data.ok === true ? 'Flow Bridge reachable' : 'Flow Bridge responded',
+    })
+    return { success: true, steps }
+  } catch (error) {
+    steps.push({
+      name: 'models',
+      status: 'fail',
+      message: toNetworkErrorMessage(error),
+    })
+    return { success: false, steps }
   }
 }
 
@@ -843,7 +883,7 @@ export async function testProviderConnection(payload: TestProviderPayload): Prom
   }
 
   // Compatible providers require baseUrl
-  if ((apiType === 'openai-compatible' || apiType === 'gemini-compatible') && !baseUrl) {
+  if ((apiType === 'openai-compatible' || apiType === 'gemini-compatible' || apiType === 'flow-bridge') && !baseUrl) {
     return {
       success: false,
       steps: [{ name: 'models', status: 'fail', message: 'Missing baseUrl' }],
@@ -855,6 +895,8 @@ export async function testProviderConnection(payload: TestProviderPayload): Prom
       return testCompatibleProvider(baseUrl!, apiKey, llmModel)
     case 'gemini-compatible':
       return testCompatibleProvider(baseUrl!, apiKey, llmModel)
+    case 'flow-bridge':
+      return testFlowBridgeProvider(baseUrl!, apiKey)
     case 'ark':
       return testArkProvider(apiKey)
     case 'google':

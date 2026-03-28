@@ -13,11 +13,12 @@ import {
     GoogleGeminiImageGenerator,
     GoogleImagenGenerator,
     GoogleGeminiBatchImageGenerator,
+    FlowBridgeImageGenerator,
     GeminiCompatibleImageGenerator,
     OpenAICompatibleImageGenerator,
 } from './image'
 import { GoogleVeoVideoGenerator } from './video/google'
-import { OpenAICompatibleVideoGenerator } from './video'
+import { FlowBridgeVideoGenerator, OpenAICompatibleVideoGenerator } from './video'
 import { MinimaxVideoGenerator } from './minimax'
 import { ViduVideoGenerator } from './vidu'
 import { getProviderKey } from '@/lib/api-config'
@@ -63,6 +64,8 @@ export function createImageGenerator(provider: string, modelId?: string): ImageG
             return new GeminiCompatibleImageGenerator(actualModelId, provider)
         case 'openai-compatible':
             return new OpenAICompatibleImageGenerator(actualModelId, provider)
+        case 'flow-bridge':
+            return new FlowBridgeImageGenerator(actualModelId, provider)
         case 'bailian':
             return new BailianImageGenerator()
         case 'siliconflow':
@@ -92,6 +95,8 @@ export function createVideoGenerator(provider: string): VideoGenerator {
             return new ViduVideoGenerator()
         case 'openai-compatible':
             return new OpenAICompatibleVideoGenerator(provider)
+        case 'flow-bridge':
+            return new FlowBridgeVideoGenerator(provider)
         case 'bailian':
             return new BailianVideoGenerator()
         case 'siliconflow':

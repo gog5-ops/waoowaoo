@@ -64,6 +64,9 @@ function normalizeProviderBaseUrl(providerId: string, rawBaseUrl?: string): stri
   if (providerKey === 'minimax') {
     return 'https://api.minimaxi.com/v1'
   }
+  if (providerKey === 'flow-bridge') {
+    return readTrimmedString(rawBaseUrl) || undefined
+  }
 
   const baseUrl = readTrimmedString(rawBaseUrl)
   if (!baseUrl) return undefined
