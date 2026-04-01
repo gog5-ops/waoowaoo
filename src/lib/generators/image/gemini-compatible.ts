@@ -1,10 +1,14 @@
 import { GoogleGenAI, HarmBlockThreshold, HarmCategory } from '@google/genai'
 import { getProviderConfig } from '@/lib/api-config'
 import { getImageBase64Cached } from '@/lib/image-cache'
+import { normalizeToBase64ForGeneration } from '@/lib/media/outbound-image'
 import { BaseImageGenerator, type GenerateResult, type ImageGenerateParams } from '../base'
 import { setProxy } from '../../../../lib/prompts/proxy'
 
-type GeminiCompatibleContentPart = { inlineData: { mimeType: string; data: string } } | { text: string }
+type GeminiCompatibleContentPart =
+  | { inlineData: { mimeType: string; data: string } }
+  | { fileData: { mimeType?: string; fileUri?: string } }
+  | { text: string }
 
 type GeminiCompatibleOptions = {
   aspectRatio?: string
@@ -131,6 +135,23 @@ export class GeminiCompatibleImageGenerator extends BaseImageGenerator {
           success: true,
           imageBase64,
           imageUrl: `data:${mimeType};base64,${imageBase64}`,
+        }
+      }
+      if (part.fileData?.fileUri) {
+        const imageUrl = part.fileData.fileUri.trim()
+        if (!imageUrl) continue
+        const base64DataUrl = await normalizeToBase64ForGeneration(imageUrl)
+        const parsed = parseDataUrl(base64DataUrl)
+        if (parsed) {
+          return {
+            success: true,
+            imageBase64: parsed.base64,
+            imageUrl: base64DataUrl,
+          }
+        }
+        return {
+          success: true,
+          imageUrl,
         }
       }
     }

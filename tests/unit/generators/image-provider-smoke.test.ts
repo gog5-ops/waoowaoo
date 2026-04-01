@@ -231,4 +231,42 @@ describe('image provider smoke tests', () => {
     expect(content.contents[0].parts[1].text).toBe('restyle this portrait')
     expect(content.config.imageConfig).toEqual({ imageSize: '2K' })
   })
+
+  it('Gemini 兼容层文生图可用 -> fileData 结果会转换为 data URL', async () => {
+    getProviderConfigMock.mockResolvedValueOnce({
+      id: 'gemini-compatible:gm-1',
+      apiKey: 'gm-key',
+      baseUrl: 'https://gm.test',
+    })
+    normalizeToBase64ForGenerationMock.mockResolvedValueOnce('data:image/png;base64,RklMRV9EQVRB')
+    googleGenerateContentMock.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                fileData: {
+                  mimeType: 'image/png',
+                  fileUri: 'https://example.com/generated.png',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+
+    const generator = new GeminiCompatibleImageGenerator('gemini-3.1-flash-image', 'gemini-compatible:gm-1')
+    const result = await generator.generate({
+      userId: 'user-1',
+      prompt: 'draw a blue circle icon',
+    })
+
+    expect(normalizeToBase64ForGenerationMock).toHaveBeenCalledWith('https://example.com/generated.png')
+    expect(result).toEqual({
+      success: true,
+      imageBase64: 'RklMRV9EQVRB',
+      imageUrl: 'data:image/png;base64,RklMRV9EQVRB',
+    })
+  })
 })
