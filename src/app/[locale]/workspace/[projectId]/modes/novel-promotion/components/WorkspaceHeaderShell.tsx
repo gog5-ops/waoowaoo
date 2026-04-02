@@ -47,6 +47,7 @@ interface WorkspaceHeaderShellProps {
   editModel: string | null | undefined
   videoModel: string | null | undefined
   audioModel: string | null | undefined
+  flowProjectId: string | null | undefined
   capabilityOverrides: CapabilitySelections
   videoRatio: string | null | undefined
   ttsRate: string | null | undefined
@@ -94,6 +95,7 @@ export default function WorkspaceHeaderShell({
   editModel,
   videoModel,
   audioModel,
+  flowProjectId,
   capabilityOverrides,
   videoRatio,
   ttsRate,
@@ -133,6 +135,7 @@ export default function WorkspaceHeaderShell({
         editModel={editModel ?? undefined}
         videoModel={videoModel ?? undefined}
         audioModel={audioModel ?? undefined}
+        flowProjectId={flowProjectId ?? undefined}
         videoRatio={videoRatio ?? undefined}
         capabilityOverrides={capabilityOverrides}
         ttsRate={ttsRate ?? undefined}
@@ -144,6 +147,7 @@ export default function WorkspaceHeaderShell({
         onEditModelChange={(value) => { onUpdateConfig('editModel', value) }}
         onVideoModelChange={(value) => { onUpdateConfig('videoModel', value) }}
         onAudioModelChange={(value) => { onUpdateConfig('audioModel', value) }}
+        onFlowProjectIdChange={(value) => { onUpdateConfig('flowProjectId', value) }}
         onVideoRatioChange={(value) => { onUpdateConfig('videoRatio', value) }}
         onCapabilityOverridesChange={(value) => { onUpdateConfig('capabilityOverrides', value) }}
         onTTSRateChange={(value) => { onUpdateConfig('ttsRate', value) }}

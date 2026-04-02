@@ -1,0 +1,32 @@
+services:
+  app:
+    image: waoowaoo:vm-dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: deps
+    environment:
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      - waoowaoo_node_modules:/app/node_modules
+      - waoowaoo_next_cache:/app/.next
+      - ./data:/app/data
+      - ./docker-logs:/app/logs
+    command: >
+      sh -c "
+        touch /app/.env &&
+        LOCK_HASH=$$(sha256sum package-lock.json | awk '{print $$1}') &&
+        SENTINEL=node_modules/.package-lock.sha256 &&
+        if [ ! -x node_modules/.bin/cross-env ] || [ ! -f $$SENTINEL ] || [ \"$$LOCK_HASH\" != \"$$(cat $$SENTINEL 2>/dev/null)\" ]; then
+          npm ci &&
+          echo $$LOCK_HASH > $$SENTINEL;
+        fi &&
+        npx prisma generate &&
+        npx prisma db push --skip-generate &&
+        npm run dev
+      "
+
+volumes:
+  waoowaoo_node_modules:
+  waoowaoo_next_cache:

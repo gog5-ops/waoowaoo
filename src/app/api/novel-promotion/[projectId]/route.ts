@@ -242,6 +242,7 @@ export const GET = apiHandler(async (
       editModel: true,
       videoModel: true,
       audioModel: true,
+      flowProjectId: true,
     }})
 
   const storedOverrides = parseStoredCapabilitySelections(projectData?.capabilityOverrides)
@@ -259,7 +260,8 @@ export const GET = apiHandler(async (
   const cleanedOverrides = sanitizeCapabilityOverrides(storedOverrides, modelContextMap)
 
   return NextResponse.json({
-    capabilityOverrides: cleanedOverrides})
+    capabilityOverrides: cleanedOverrides,
+    flowProjectId: projectData?.flowProjectId ?? null})
 })
 
 // PATCH - 更新小说推文项目配置
@@ -298,7 +300,7 @@ export const PATCH = apiHandler(async (
   const allowedProjectFields = [
     'analysisModel', 'characterModel', 'locationModel', 'storyboardModel',
     'editModel', 'videoModel', 'audioModel', 'videoRatio', 'artStyle',
-    'ttsRate', 'lipSyncEnabled', 'lipSyncMode', 'capabilityOverrides',
+    'ttsRate', 'lipSyncEnabled', 'lipSyncMode', 'capabilityOverrides', 'flowProjectId',
   ] as const
 
   const updateData: Record<string, unknown> = {}
@@ -320,6 +322,13 @@ export const PATCH = apiHandler(async (
       const cleanedOverrides = sanitizeCapabilityOverrides(overrides, modelContextMap)
       validateCapabilityOverrides(cleanedOverrides, modelContextMap)
       updateData.capabilityOverrides = serializeCapabilitySelections(cleanedOverrides)
+      continue
+    }
+
+    if (field === 'flowProjectId') {
+      updateData.flowProjectId = typeof body.flowProjectId === 'string' && body.flowProjectId.trim()
+        ? body.flowProjectId.trim()
+        : null
       continue
     }
 

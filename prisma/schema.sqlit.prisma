@@ -237,6 +237,7 @@ model NovelPromotionPanel {
 model NovelPromotionProject {
   id              String                    @id @default(uuid())
   projectId       String                    @unique
+  flowProjectId   String?
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @default(now()) @updatedAt
   analysisModel   String? // 用户配置的分析模型（nullable，必须配置后才能使用）

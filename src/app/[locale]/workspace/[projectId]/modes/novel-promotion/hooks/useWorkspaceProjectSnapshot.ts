@@ -42,6 +42,7 @@ export function useWorkspaceProjectSnapshot({
       editModel: projectData?.editModel,
       videoModel: projectData?.videoModel,
       audioModel: projectData?.audioModel,
+      flowProjectId: projectData?.flowProjectId,
       videoRatio: projectData?.videoRatio,
       capabilityOverrides,
       ttsRate: projectData?.ttsRate,

@@ -229,11 +229,17 @@ export async function resolveImageSourceFromGeneration(
     },
   })
 
+  const externalProjectId = typeof capabilityOptions.projectId === 'string'
+    ? capabilityOptions.projectId
+    : (typeof params.options?.projectId === 'string' && params.options.projectId.trim()
+      ? params.options.projectId.trim()
+      : undefined)
+
   const result = await withLogContext(
     { projectId: job.data.projectId, taskId: job.data.taskId, userId: params.userId },
     () => generateImage(params.userId, params.modelId, params.prompt, {
       ...params.options,
-      projectId: job.data.projectId,
+      ...(externalProjectId ? { projectId: externalProjectId } : {}),
       ...capabilityOptions,
     }),
   )
@@ -364,11 +370,17 @@ export async function resolveVideoSourceFromGeneration(
     providerRequestOptions[key] = value
   }
 
+  const externalProjectId = typeof providerCapabilityOptions.projectId === 'string'
+    ? providerCapabilityOptions.projectId
+    : (typeof params.options?.projectId === 'string' && params.options.projectId.trim()
+      ? params.options.projectId.trim()
+      : undefined)
+
   const result = await withLogContext(
     { projectId: job.data.projectId, taskId: job.data.taskId, userId: params.userId },
     () => generateVideo(params.userId, params.modelId, params.imageUrl, {
       ...providerRequestOptions,
-      projectId: job.data.projectId,
+      ...(externalProjectId ? { projectId: externalProjectId } : {}),
       ...providerCapabilityOptions,
     }),
   )

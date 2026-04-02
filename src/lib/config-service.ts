@@ -105,6 +105,7 @@ export interface ProjectModelConfig {
   editModel: string | null
   videoModel: string | null
   audioModel: string | null
+  flowProjectId: string | null
   videoRatio: string | null
   artStyle: string | null
   capabilityDefaults: CapabilitySelections
@@ -161,6 +162,9 @@ export async function getProjectModelConfig(
     editModel: extractModelKey(projectData?.editModel) || null,
     videoModel: extractModelKey(projectData?.videoModel) || null,
     audioModel: extractModelKey(projectData?.audioModel) || extractModelKey(userPref?.audioModel) || null,
+    flowProjectId: typeof projectData?.flowProjectId === 'string' && projectData.flowProjectId.trim()
+      ? projectData.flowProjectId.trim()
+      : null,
     videoRatio: projectData?.videoRatio || '16:9',
     artStyle: projectData?.artStyle || null,
     capabilityDefaults: parseCapabilitySelections(userPref?.capabilityDefaults),
@@ -292,13 +296,15 @@ export async function buildImageBillingPayload(input: {
   const { projectId, userId, imageModel, basePayload } = input
   if (!imageModel) return basePayload
 
+  const projectConfig = await getProjectModelConfig(projectId, userId)
+
   let capabilityOptions: Record<string, CapabilityValue> = {}
   try {
-    capabilityOptions = await resolveProjectModelCapabilityGenerationOptions({
-      projectId,
-      userId,
+    capabilityOptions = resolveModelCapabilityGenerationOptions({
       modelType: 'image',
       modelKey: imageModel,
+      capabilityDefaults: projectConfig.capabilityDefaults,
+      capabilityOverrides: projectConfig.capabilityOverrides,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Image model capability not configured'
@@ -308,7 +314,14 @@ export async function buildImageBillingPayload(input: {
   return {
     ...basePayload,
     imageModel,
-    ...(Object.keys(capabilityOptions).length > 0 ? { generationOptions: capabilityOptions } : {}),
+    ...(Object.keys(capabilityOptions).length > 0 || !!projectConfig.flowProjectId
+      ? {
+        generationOptions: {
+          ...capabilityOptions,
+          ...(projectConfig.flowProjectId ? { projectId: projectConfig.flowProjectId } : {}),
+        },
+      }
+      : {}),
   }
 }
 

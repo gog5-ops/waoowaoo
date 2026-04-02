@@ -232,6 +232,43 @@ describe('image provider smoke tests', () => {
     expect(content.config.imageConfig).toEqual({ imageSize: '2K' })
   })
 
+  it('Gemini 兼容层支持透传 projectId 到 flow2api 请求体', async () => {
+    getProviderConfigMock.mockResolvedValueOnce({
+      id: 'gemini-compatible:gm-1',
+      apiKey: 'gm-key',
+      baseUrl: 'https://gm.test',
+    })
+    googleGenerateContentMock.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: 'image/png',
+                  data: 'UFJPSkVDVA==',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+
+    const generator = new GeminiCompatibleImageGenerator('gemini-3.1-flash-image', 'gemini-compatible:gm-1')
+    await generator.generate({
+      userId: 'user-1',
+      prompt: 'draw a moon',
+      options: {
+        projectId: 'flow-project-123',
+      },
+    })
+
+    expect(googleGenerateContentMock).toHaveBeenCalledWith(expect.objectContaining({
+      project_id: 'flow-project-123',
+    }))
+  })
+
   it('Gemini 兼容层文生图可用 -> fileData 结果会转换为 data URL', async () => {
     getProviderConfigMock.mockResolvedValueOnce({
       id: 'gemini-compatible:gm-1',

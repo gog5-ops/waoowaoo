@@ -16,6 +16,7 @@ type GeminiCompatibleOptions = {
   provider?: string
   modelId?: string
   modelKey?: string
+  projectId?: string
 }
 
 function toAbsoluteUrlIfNeeded(value: string): string {
@@ -57,6 +58,7 @@ function assertAllowedOptions(options: Record<string, unknown>) {
     'modelKey',
     'aspectRatio',
     'resolution',
+    'projectId',
   ])
   for (const [key, value] of Object.entries(options)) {
     if (value === undefined) continue
@@ -103,7 +105,7 @@ export class GeminiCompatibleImageGenerator extends BaseImageGenerator {
     }
     parts.push({ text: prompt })
 
-    const response = await ai.models.generateContent({
+    const requestPayload: Record<string, unknown> = {
       model: this.modelId || normalizedOptions.modelId || 'gemini-2.5-flash-image-preview',
       contents: [{ parts }],
       config: {
@@ -123,7 +125,10 @@ export class GeminiCompatibleImageGenerator extends BaseImageGenerator {
           }
           : {}),
       },
-    })
+      ...(normalizedOptions.projectId ? { project_id: normalizedOptions.projectId } : {}),
+    }
+
+    const response = await ai.models.generateContent(requestPayload as never)
 
     const candidate = response.candidates?.[0]
     const responseParts = candidate?.content?.parts || []

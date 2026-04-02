@@ -232,6 +232,7 @@ export interface NovelPromotionShot {
 export interface NovelPromotionProject {
   id: string
   projectId: string
+  flowProjectId?: string | null
   stage: string
   globalAssetText: string | null
   novelText: string | null

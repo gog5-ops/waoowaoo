@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { useTranslations } from 'next-intl'
 import {
     ART_STYLES,
@@ -48,6 +48,7 @@ interface SettingsModalProps {
     locationModel?: string
     imageModel?: string
     editModel?: string
+    flowProjectId?: string
 
     videoModel?: string
     audioModel?: string
@@ -60,6 +61,7 @@ interface SettingsModalProps {
     onLocationModelChange?: (value: string) => void
     onImageModelChange?: (value: string) => void
     onEditModelChange?: (value: string) => void
+    onFlowProjectIdChange?: (value: string) => void
 
     onVideoModelChange?: (value: string) => void
     onAudioModelChange?: (value: string) => void
@@ -133,6 +135,7 @@ export function SettingsModal({
     locationModel,
     imageModel,
     editModel,
+    flowProjectId = '',
     videoModel,
     audioModel,
     videoRatio = '9:16',
@@ -144,6 +147,7 @@ export function SettingsModal({
     onLocationModelChange,
     onImageModelChange,
     onEditModelChange,
+    onFlowProjectIdChange,
     onVideoModelChange,
     onAudioModelChange,
     onVideoRatioChange,
@@ -326,6 +330,11 @@ export function SettingsModal({
         showSaved()
     }
 
+    const handleTextInputChange = (callback?: (value: string) => void) => (event: ChangeEvent<HTMLInputElement>) => {
+        callback?.(event.target.value)
+        showSaved()
+    }
+
     if (!isOpen) return null
 
     return (
@@ -488,6 +497,18 @@ export function SettingsModal({
                                     placeholder={t('pleaseSelect')}
                                 />
                             </div>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-[var(--glass-text-secondary)]">{t('flowProjectId')}</label>
+                            <input
+                                type="text"
+                                value={flowProjectId}
+                                onChange={handleTextInputChange(onFlowProjectIdChange)}
+                                placeholder={t('flowProjectIdPlaceholder')}
+                                className="w-full rounded-[20px] border border-[var(--glass-border)] bg-white/75 px-4 py-3 text-sm text-[var(--glass-text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
+                                spellCheck={false}
+                            />
+                            <p className="text-xs text-[var(--glass-text-tertiary)]">{t('flowProjectIdHint')}</p>
                         </div>
                     </div>
 

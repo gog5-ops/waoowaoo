@@ -27,6 +27,7 @@ interface ProjectSnapshotInput {
   editModel: string | undefined
   videoModel: string | undefined
   audioModel: string | undefined
+  flowProjectId: string | null | undefined
   videoRatio: string | undefined
   capabilityOverrides: CapabilitySelections
   ttsRate: string | number | undefined

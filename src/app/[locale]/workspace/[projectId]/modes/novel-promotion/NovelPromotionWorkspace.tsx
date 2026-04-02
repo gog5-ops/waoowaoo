@@ -93,6 +93,7 @@ function NovelPromotionWorkspaceContent(props: NovelPromotionWorkspaceProps) {
         editModel={vm.project.editModel}
         videoModel={vm.project.videoModel}
         audioModel={vm.project.audioModel}
+        flowProjectId={vm.project.flowProjectId}
         capabilityOverrides={vm.project.capabilityOverrides}
         videoRatio={vm.project.videoRatio}
         ttsRate={vm.project.ttsRate !== undefined && vm.project.ttsRate !== null ? String(vm.project.ttsRate) : undefined}
