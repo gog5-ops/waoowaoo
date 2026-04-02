@@ -23,7 +23,6 @@ services:
           echo $$LOCK_HASH > $$SENTINEL;
         fi &&
         npx prisma generate &&
-        npx prisma db push --skip-generate &&
         npm run dev
       "
 
