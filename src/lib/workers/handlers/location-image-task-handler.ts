@@ -12,6 +12,7 @@ import {
   AnyObj,
   generateLabeledImageToCos,
   pickFirstString,
+  resolveGenerationProjectId,
 } from './image-task-handler-shared'
 
 function resolvePayloadArtStyle(payload: AnyObj): ArtStyleValue | undefined {
@@ -65,6 +66,7 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
 
   const payloadArtStyle = resolvePayloadArtStyle(payload)
   const artStyle = getArtStylePrompt(payloadArtStyle ?? models.artStyle, job.data.locale)
+  const externalProjectId = resolveGenerationProjectId(payload)
 
   // targetId may be locationId (group) or locationImageId (single)
   const maybeLocationImage = await db.locationImage.findUnique({
@@ -156,6 +158,7 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
       keyPrefix: 'location',
       options: {
         aspectRatio: '1:1',
+        ...(externalProjectId ? { projectId: externalProjectId } : {}),
       },
     })
 

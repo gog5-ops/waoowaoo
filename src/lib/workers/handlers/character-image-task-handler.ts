@@ -17,6 +17,7 @@ import {
   parseImageUrls,
   parseJsonStringArray,
   pickFirstString,
+  resolveGenerationProjectId,
 } from './image-task-handler-shared'
 
 function resolvePayloadArtStyle(payload: AnyObj): ArtStyleValue | undefined {
@@ -108,6 +109,7 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
 
   const payloadArtStyle = resolvePayloadArtStyle(payload)
   const artStyle = getArtStylePrompt(payloadArtStyle ?? models.artStyle, job.data.locale)
+  const externalProjectId = resolveGenerationProjectId(payload)
   const descriptions = parseJsonStringArray(appearance.descriptions)
   const baseDescriptions = descriptions.length > 0 ? descriptions : [appearance.description || '']
 
@@ -163,6 +165,7 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
       options: {
         referenceImages: primaryReferenceImages.length > 0 ? primaryReferenceImages : undefined,
         aspectRatio: '3:2',
+        ...(externalProjectId ? { projectId: externalProjectId } : {}),
       },
     })
 

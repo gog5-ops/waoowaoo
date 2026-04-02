@@ -219,21 +219,22 @@ export async function resolveImageSourceFromGeneration(
     runtimeSelections,
   })
 
+  const externalProjectId = typeof capabilityOptions.projectId === 'string'
+    ? capabilityOptions.projectId
+    : (typeof params.options?.projectId === 'string' && params.options.projectId.trim()
+      ? params.options.projectId.trim()
+      : undefined)
+
   logger.info({
     message: 'image source generation calling generateImage',
     details: {
       model: params.modelId,
       referenceImageCount: params.options?.referenceImages?.length ?? 0,
       capabilityOptions,
+      externalProjectId,
       optionKeys: Object.keys(params.options || {}),
     },
   })
-
-  const externalProjectId = typeof capabilityOptions.projectId === 'string'
-    ? capabilityOptions.projectId
-    : (typeof params.options?.projectId === 'string' && params.options.projectId.trim()
-      ? params.options.projectId.trim()
-      : undefined)
 
   const result = await withLogContext(
     { projectId: job.data.projectId, taskId: job.data.taskId, userId: params.userId },

@@ -105,6 +105,7 @@ export async function generateLabeledImageToCos(params: {
     referenceImages?: string[]
     aspectRatio?: string
     size?: string
+    projectId?: string
   }
 }) {
   const source = await resolveImageSourceFromGeneration(params.job, {
@@ -117,6 +118,17 @@ export async function generateLabeledImageToCos(params: {
   const labeled = await withLabelBar(source, params.label)
   const cosKey = await uploadImageSourceToCos(labeled, params.keyPrefix, params.targetId)
   return cosKey
+}
+
+export function resolveGenerationProjectId(payload: AnyObj): string | undefined {
+  const generationOptions = payload.generationOptions
+  if (!generationOptions || typeof generationOptions !== 'object' || Array.isArray(generationOptions)) {
+    return undefined
+  }
+  const rawProjectId = (generationOptions as Record<string, unknown>).projectId
+  if (typeof rawProjectId !== 'string') return undefined
+  const projectId = rawProjectId.trim()
+  return projectId || undefined
 }
 
 export async function resolveNovelData(projectId: string) {

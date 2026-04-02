@@ -21,6 +21,7 @@ import {
   parseImageUrls,
   pickFirstString,
   resolveNovelData,
+  resolveGenerationProjectId,
 } from './image-task-handler-shared'
 import { createScopedLogger } from '@/lib/logging/core'
 import {
@@ -61,6 +62,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
   const resolution = typeof generationOptions?.resolution === 'string'
     ? generationOptions.resolution
     : undefined
+  const externalProjectId = resolveGenerationProjectId(payload)
   const modifyInstruction = typeof modifyPrompt === 'string' ? modifyPrompt.trim() : ''
 
   if (type === 'character') {
@@ -105,6 +107,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
         referenceImages,
         aspectRatio: '3:2',
         ...(resolution ? { resolution } : {}),
+        ...(externalProjectId ? { projectId: externalProjectId } : {}),
       },
     })
 
@@ -208,6 +211,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
         referenceImages,
         aspectRatio: '1:1',
         ...(resolution ? { resolution } : {}),
+        ...(externalProjectId ? { projectId: externalProjectId } : {}),
       },
     })
 
@@ -327,6 +331,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
         referenceImages: uniqueReferences,
         aspectRatio,
         ...(resolution ? { resolution } : {}),
+        ...(externalProjectId ? { projectId: externalProjectId } : {}),
       },
     })
 

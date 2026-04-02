@@ -19,6 +19,7 @@ import {
   parsePanelCharacterReferences,
   pickFirstString,
   resolveNovelData,
+  resolveGenerationProjectId,
 } from './image-task-handler-shared'
 import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
 
@@ -154,6 +155,7 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
   const payload = (job.data.payload || {}) as AnyObj
   const panelId = pickFirstString(payload.panelId, job.data.targetId)
   if (!panelId) throw new Error('panelId missing')
+  const externalProjectId = resolveGenerationProjectId(payload)
 
   const panel = await prisma.novelPromotionPanel.findUnique({
     where: { id: panelId },
@@ -242,6 +244,7 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
       options: {
         referenceImages: normalizedRefs,
         aspectRatio,
+        ...(externalProjectId ? { projectId: externalProjectId } : {}),
       },
       // 单个任务内会串行生成多候选，若允许按 task.externalId 续接会复用上一候选外部任务结果。
       allowTaskExternalIdResume: candidateCount === 1,
