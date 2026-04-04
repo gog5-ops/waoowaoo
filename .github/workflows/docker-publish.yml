@@ -143,4 +143,5 @@ jobs:
             docker compose pull app
             docker compose up -d --no-deps app
             docker image prune -f
+
             echo "Deployed at $(date)"
