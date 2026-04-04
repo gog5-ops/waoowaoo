@@ -19,28 +19,6 @@ jobs:
   # ─────────────────────────────────────────────
   test:
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: waoowaoo_test
-        ports:
-          - 3307:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=30
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6380:6379
-        options: >-
-          --health-cmd="redis-cli ping"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=30
 
     steps:
       - name: Checkout
@@ -62,6 +40,7 @@ jobs:
 
       - name: Run tests
         env:
+          # Integration suites bootstrap docker-compose.test.yml themselves.
           DATABASE_URL: "mysql://root:root@127.0.0.1:3307/waoowaoo_test"
           REDIS_HOST: "127.0.0.1"
           REDIS_PORT: "6380"
