@@ -36,7 +36,7 @@ vi.mock('@/lib/media-process', () => ({ processMediaResult: vi.fn() }))
 vi.mock('@/lib/config-service', () => ({
   getProjectModelConfig: vi.fn(),
   getUserModelConfig: vi.fn(),
-  resolveProjectModelCapabilityGenerationOptions: vi.fn(),
+  resolveProjectModelCapabilityGenerationOptions: vi.fn(async () => ({})),
 }))
 
 import { resolveImageSourceFromGeneration, resolveVideoSourceFromGeneration } from '@/lib/workers/utils'

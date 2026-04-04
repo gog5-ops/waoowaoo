@@ -1,17 +1,65 @@
-name: Build & Push Docker Image
+name: CI / Build / Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     tags: ['v*']
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push:
+  # ─────────────────────────────────────────────
+  # Job 1: Lint + Typecheck + Tests
+  # 触发：所有 PR 和 push（main / dev / tags）
+  # ─────────────────────────────────────────────
+  test:
     runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint & Typecheck
+        run: |
+          npm run lint:all
+          npm run typecheck
+
+      - name: Run tests
+        env:
+          # Integration suites bootstrap docker-compose.test.yml themselves.
+          DATABASE_URL: "mysql://root:root@127.0.0.1:3307/waoowaoo_test"
+          REDIS_HOST: "127.0.0.1"
+          REDIS_PORT: "6380"
+          REDIS_PASSWORD: ""
+          NEXTAUTH_SECRET: "test-secret"
+          NEXTAUTH_URL: "http://localhost:3000"
+          CRON_SECRET: "test-cron"
+          INTERNAL_TASK_TOKEN: "test-token"
+          API_ENCRYPTION_KEY: "test-key-32-chars-padded-000000"
+        run: npm run verify:push
+
+  # ─────────────────────────────────────────────
+  # Job 2: Build & Push Docker Image
+  # 触发：push 到 main 或版本 tag（不含 dev 分支）
+  # ─────────────────────────────────────────────
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
       contents: read
       packages: write
@@ -53,3 +101,82 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────────
+  # Job 3: Build & Push Dev Docker Image
+  # 触发：push 到 dev 分支
+  # ─────────────────────────────────────────────
+  build-dev:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/gog5-ops/waoowaoo:dev
+
+  # ─────────────────────────────────────────────
+  # Job 4: Deploy Dev + Smoke Test
+  # 触发：build-dev 成功后，仅 dev 分支
+  # ─────────────────────────────────────────────
+  deploy-dev:
+    needs: build-dev
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+
+    steps:
+      - name: Deploy dev to VM via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            cd /opt/waoowaoo
+            docker compose pull app
+            docker compose up -d --no-deps app
+            sleep 15
+            curl -f http://localhost:3000/api/health || curl -f http://localhost:3000/
+            echo 'Layer 3 smoke test passed'
+
+  # ─────────────────────────────────────────────
+  # Job 5: Deploy to VM
+  # 触发：build-and-push 成功后，仅 main 分支
+  # ─────────────────────────────────────────────
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy to VM via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            cd /opt/waoowaoo
+            docker compose pull app
+            docker compose up -d --no-deps app
+            docker image prune -f
+
+            echo "Deployed at $(date)"
