@@ -109,7 +109,7 @@ describe('worker utils video generation resume', () => {
       allowTaskExternalIdResume: false,
     })
 
-    expect(result.url).toBe('https://fal.test/new-image.png')
+    expect(result).toBe('https://fal.test/new-image.png')
     expect(prismaMock.task.findUnique).not.toHaveBeenCalled()
     expect(asyncPollMock.pollAsyncTask).not.toHaveBeenCalled()
     expect(generatorApiMock.generateImage).toHaveBeenCalledTimes(1)
