@@ -6,25 +6,27 @@ Closes #
 
 <!-- 简要描述做了什么 -->
 
-## TDD 检查
+## Layer 1+2 测试（提 PR 前本地必须全通过）
 
-- [ ] **先写测试后实现**：测试文件的 commit 早于实现代码（或同批次但测试先写）
 - [ ] 新增测试文件：`tests/xxx.test.ts`
+- [ ] 本地运行通过：`npm run verify:push` / `pytest tests/unit/`
+- [ ] CI 全绿（lint + typecheck + tests）
 - [ ] 测试描述与 Issue 验收标准一一对应
 
-## 验收标准确认
+## Layer 3 Smoke Test（PR 后部署 VM）
 
-<!-- 逐条对照 Issue 中的验收标准 -->
+- [ ] `vm_manager.ps1 -Action Deploy<Project>` 服务正常启动
+- [ ] `vm_manager.ps1 -Action SmokeTest<ActionName>` 通过
+- [ ] 结果已贴到 PR comment
+
+## 验收标准确认（对照 Issue）
+
+<!-- 逐条勾选 Issue 中的验收标准 -->
 
 - [ ]
 - [ ]
-- [ ] CI 全绿（lint + typecheck + tests）
 
 ## 范围确认
 
-- [ ] 只改了 Issue 范围内的内容，没有额外的"顺手重构"
+- [ ] 只改了 Issue 范围内的内容
 - [ ] 没有引入新的外部依赖（如有，请说明原因）
-
-## 测试截图 / 日志（可选）
-
-<!-- 如有 UI 变更或复杂逻辑，贴截图或测试输出 -->

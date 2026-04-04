@@ -24,12 +24,23 @@ assignees: ''
 - [ ] `npm run typecheck` 无新错误
 - [ ] `npm run lint:all` 无新警告
 
-## 需要覆盖的测试
+## 需要覆盖的测试（Layer 1+2，提 PR 前本地必须全通过）
 
 ```
 - unit:        tests/unit/xxx.test.ts        — 测试 [具体逻辑]
 - integration: tests/integration/xxx.test.ts — 测试 [具体场景]
 ```
+
+## Smoke Test（Layer 3，PR 后部署 VM 验证）
+
+> Codex 实现时同步在 `vm_manager.ps1` 加对应 Action。
+
+**Action 名称：** `SmokeTest<ActionName>`
+
+验证步骤：
+- [ ] 服务重启正常：`vm_manager.ps1 -Action Deploy<Project>`
+- [ ] <!-- 关键接口验证：具体 curl 或脚本 -->
+- [ ] <!-- 错误场景验证（可选） -->
 
 ## 技术上下文
 
