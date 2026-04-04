@@ -103,7 +103,62 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ─────────────────────────────────────────────
-  # Job 3: Deploy to VM
+  # Job 3: Build & Push Dev Docker Image
+  # 触发：push 到 dev 分支
+  # ─────────────────────────────────────────────
+  build-dev:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/gog5-ops/waoowaoo:dev
+
+  # ─────────────────────────────────────────────
+  # Job 4: Deploy Dev + Smoke Test
+  # 触发：build-dev 成功后，仅 dev 分支
+  # ─────────────────────────────────────────────
+  deploy-dev:
+    needs: build-dev
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+
+    steps:
+      - name: Deploy dev to VM via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            cd /opt/waoowaoo
+            docker compose pull app
+            docker compose up -d --no-deps app
+            sleep 15
+            curl -f http://localhost:3000/api/health || curl -f http://localhost:3000/
+            echo 'Layer 3 smoke test passed'
+
+  # ─────────────────────────────────────────────
+  # Job 5: Deploy to VM
   # 触发：build-and-push 成功后，仅 main 分支
   # ─────────────────────────────────────────────
   deploy:
