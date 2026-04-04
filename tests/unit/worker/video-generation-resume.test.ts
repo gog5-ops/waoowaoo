@@ -36,7 +36,7 @@ vi.mock('@/lib/media-process', () => ({ processMediaResult: vi.fn() }))
 vi.mock('@/lib/config-service', () => ({
   getProjectModelConfig: vi.fn(),
   getUserModelConfig: vi.fn(),
-  resolveProjectModelCapabilityGenerationOptions: vi.fn(),
+  resolveProjectModelCapabilityGenerationOptions: vi.fn(async () => ({})),
 }))
 
 import { resolveImageSourceFromGeneration, resolveVideoSourceFromGeneration } from '@/lib/workers/utils'
@@ -109,7 +109,7 @@ describe('worker utils video generation resume', () => {
       allowTaskExternalIdResume: false,
     })
 
-    expect(result).toBe('https://fal.test/new-image.png')
+    expect(result.url).toBe('https://fal.test/new-image.png')
     expect(prismaMock.task.findUnique).not.toHaveBeenCalled()
     expect(asyncPollMock.pollAsyncTask).not.toHaveBeenCalled()
     expect(generatorApiMock.generateImage).toHaveBeenCalledTimes(1)
