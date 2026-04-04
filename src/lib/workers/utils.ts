@@ -49,6 +49,14 @@ function scopedWorkerUtilLogger(job: Job<TaskJobData>, action: string) {
   })
 }
 
+export type ResolvedImageGenerationResult = {
+  source: string
+  flowProjectId?: string
+  flowEditId?: string
+  flowEditUrl?: string
+  editIdCaptureFailed?: boolean
+}
+
 export function parseJsonArray(value: unknown): string[] {
   if (!value) return []
   if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string')
@@ -160,7 +168,7 @@ export async function waitExternalResult(
   throw new Error(`External task polling timeout (${Math.round(timeoutMs / 1000)}s): ${externalId}`)
 }
 
-export async function resolveImageSourceFromGeneration(
+export async function resolveImageGenerationResult(
   job: Job<TaskJobData>,
   params: {
     userId: string
@@ -177,7 +185,7 @@ export async function resolveImageSourceFromGeneration(
     allowTaskExternalIdResume?: boolean
     pollProgress?: { start?: number; end?: number }
   },
-): Promise<string> {
+): Promise<ResolvedImageGenerationResult> {
   const logger = scopedWorkerUtilLogger(job, 'worker.image.generate_source')
   const startedAt = Date.now()
   const allowTaskExternalIdResume = params.allowTaskExternalIdResume !== false
@@ -194,7 +202,7 @@ export async function resolveImageSourceFromGeneration(
         progressStart: params.pollProgress?.start ?? 40,
         progressEnd: params.pollProgress?.end ?? 92,
       })
-      return polled.url
+      return { source: polled.url }
     }
   }
 
@@ -254,7 +262,13 @@ export async function resolveImageSourceFromGeneration(
       provider: params.options?.provider || undefined,
       durationMs: Date.now() - startedAt,
     })
-    return result.imageUrl
+    return {
+      source: result.imageUrl,
+      flowProjectId: result.flowProjectId,
+      flowEditId: result.editId,
+      flowEditUrl: result.editUrl,
+      editIdCaptureFailed: result.editIdCaptureFailed,
+    }
   }
   if (result.imageBase64) {
     logger.info({
@@ -262,7 +276,13 @@ export async function resolveImageSourceFromGeneration(
       provider: params.options?.provider || undefined,
       durationMs: Date.now() - startedAt,
     })
-    return `data:image/png;base64,${result.imageBase64}`
+    return {
+      source: `data:image/png;base64,${result.imageBase64}`,
+      flowProjectId: result.flowProjectId,
+      flowEditId: result.editId,
+      flowEditUrl: result.editUrl,
+      editIdCaptureFailed: result.editIdCaptureFailed,
+    }
   }
 
   const externalId = normalizeExternalId(result, 'IMAGE')
@@ -282,7 +302,29 @@ export async function resolveImageSourceFromGeneration(
       externalId,
     },
   })
-  return polled.url
+  return { source: polled.url }
+}
+
+export async function resolveImageSourceFromGeneration(
+  job: Job<TaskJobData>,
+  params: {
+    userId: string
+    modelId: string
+    prompt: string
+    options?: {
+      referenceImages?: string[]
+      aspectRatio?: string
+      resolution?: string
+      size?: string
+      provider?: string
+      projectId?: string
+    }
+    allowTaskExternalIdResume?: boolean
+    pollProgress?: { start?: number; end?: number }
+  },
+): Promise<string> {
+  const resolved = await resolveImageGenerationResult(job, params)
+  return resolved.source
 }
 
 export async function resolveVideoSourceFromGeneration(

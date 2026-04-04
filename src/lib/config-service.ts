@@ -231,13 +231,17 @@ export async function resolveProjectModelCapabilityGenerationOptions(input: {
   runtimeSelections?: Record<string, CapabilityValue>
 }): Promise<Record<string, CapabilityValue>> {
   const config = await getProjectModelConfig(input.projectId, input.userId)
-  return resolveModelCapabilityGenerationOptions({
+  const capabilityOptions = resolveModelCapabilityGenerationOptions({
     modelType: input.modelType,
     modelKey: input.modelKey,
     capabilityDefaults: config.capabilityDefaults,
     capabilityOverrides: config.capabilityOverrides,
     runtimeSelections: input.runtimeSelections,
   })
+  return {
+    ...capabilityOptions,
+    ...(config.flowProjectId ? { projectId: config.flowProjectId } : {}),
+  }
 }
 
 /**

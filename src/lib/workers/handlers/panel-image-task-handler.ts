@@ -7,7 +7,7 @@ import { reportTaskProgress } from '../shared'
 import {
   assertTaskActive,
   getProjectModels,
-  resolveImageSourceFromGeneration,
+  resolveImageGenerationResult,
   uploadImageSourceToCos,
 } from '../utils'
 import { normalizeReferenceImagesForGeneration } from '@/lib/media/outbound-image'
@@ -230,6 +230,14 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
   })
 
   const candidates: string[] = []
+  const candidateFlowMetadata: Array<{
+    candidateIndex: number
+    imageUrl: string
+    flowProjectId?: string | null
+    flowEditId?: string | null
+    flowEditUrl?: string | null
+    editIdCaptureFailed?: boolean
+  }> = []
 
   for (let i = 0; i < candidateCount; i++) {
     await reportTaskProgress(job, 18 + Math.floor((i / Math.max(candidateCount, 1)) * 58), {
@@ -237,7 +245,7 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
       candidateIndex: i,
     })
 
-    const source = await resolveImageSourceFromGeneration(job, {
+    const generated = await resolveImageGenerationResult(job, {
       userId: job.data.userId,
       modelId: modelKey,
       prompt,
@@ -251,8 +259,16 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
       pollProgress: { start: 30, end: 90 },
     })
 
-    const cosKey = await uploadImageSourceToCos(source, 'panel-candidate', `${panel.id}-${i}`)
+    const cosKey = await uploadImageSourceToCos(generated.source, 'panel-candidate', `${panel.id}-${i}`)
     candidates.push(cosKey)
+    candidateFlowMetadata.push({
+      candidateIndex: i,
+      imageUrl: cosKey,
+      flowProjectId: generated.flowProjectId || externalProjectId || null,
+      flowEditId: generated.flowEditId || null,
+      flowEditUrl: generated.flowEditUrl || null,
+      ...(generated.editIdCaptureFailed ? { editIdCaptureFailed: true } : {}),
+    })
   }
 
   const isFirstGeneration = !panel.imageUrl
@@ -280,5 +296,10 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
     panelId: panel.id,
     candidateCount: candidates.length,
     imageUrl: isFirstGeneration ? candidates[0] || null : null,
+    flowProjectId: externalProjectId || null,
+    flowEditId: candidateFlowMetadata[0]?.flowEditId || null,
+    flowEditUrl: candidateFlowMetadata[0]?.flowEditUrl || null,
+    candidateFlowMetadata,
+    ...(candidateFlowMetadata.some((item) => item.editIdCaptureFailed) ? { editIdCaptureFailed: true } : {}),
   }
 }
