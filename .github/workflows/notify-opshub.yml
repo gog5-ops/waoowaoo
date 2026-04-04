@@ -2,30 +2,34 @@ name: Notify OpsHub
 
 on:
   workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
+    workflows:
+      - CI / Build / Deploy
+    types:
+      - completed
 
 jobs:
-  notify:
+  notify-opshub:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
     steps:
-      - name: Update OpsHub deployment state
+      - name: Update OpsHub deployment status
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
-            REPO="gog5-ops/waoowaoo"
-            NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-            RUN_ID="${{ github.event.workflow_run.id }}"
+            set -e
+            ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            ref="${{ github.repository }}@${{ github.event.workflow_run.head_sha }}"
 
-            curl -sf -X PATCH http://localhost:3099/deployments/waoowaoo-prod \
+            curl -fsS -X PATCH "http://localhost:3099/deployments/waoowaoo-prod" \
               -H "Content-Type: application/json" \
-              -d "{\"last_deploy\":\"$NOW\",\"health\":\"ok\"}" || true
+              -d "{\"last_deploy\":\"${ts}\",\"health\":\"ok\"}"
 
-            curl -sf -X POST http://localhost:3099/events \
+            curl -fsS -X POST "http://localhost:3099/events" \
               -H "Content-Type: application/json" \
-              -d "{\"id\":$(date +%s%3N),\"session_id\":\"ci-$RUN_ID\",\"time\":\"$NOW\",\"type\":\"deploy\",\"ref\":\"$REPO\",\"detail\":\"CI success run $RUN_ID\"}" || true
+              -d "{\"time\":\"${ts}\",\"type\":\"deploy\",\"ref\":\"${ref}\",\"detail\":\"GitHub Actions CI succeeded on main\"}"
