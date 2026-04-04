@@ -1,4 +1,3 @@
-import { GoogleGenAI, HarmBlockThreshold, HarmCategory } from '@google/genai'
 import { getProviderConfig } from '@/lib/api-config'
 import { getImageBase64Cached } from '@/lib/image-cache'
 import { normalizeToBase64ForGeneration } from '@/lib/media/outbound-image'
@@ -17,6 +16,41 @@ type GeminiCompatibleOptions = {
   modelId?: string
   modelKey?: string
   projectId?: string
+}
+
+type GeminiCompatibleResponsePart = {
+  inlineData?: { mimeType?: string; data?: string }
+  fileData?: { mimeType?: string; fileUri?: string }
+}
+
+type GeminiCompatibleGeneratedAssets = {
+  edit_id?: string
+  edit_url?: string
+  edit_id_capture_failed?: boolean
+}
+
+type GeminiCompatiblePerformance = {
+  project_id?: string
+  edit_id?: string
+  edit_url?: string
+  edit_id_capture_failed?: boolean
+}
+
+type GeminiCompatibleResponse = {
+  candidates?: Array<{
+    finishReason?: string
+    content?: {
+      parts?: GeminiCompatibleResponsePart[]
+    }
+  }>
+  error?: {
+    message?: string
+  }
+  performance?: GeminiCompatiblePerformance
+  generatedAssets?: GeminiCompatibleGeneratedAssets
+  editId?: string
+  editUrl?: string
+  editIdCaptureFailed?: boolean
 }
 
 function toAbsoluteUrlIfNeeded(value: string): string {
@@ -68,6 +102,14 @@ function assertAllowedOptions(options: Record<string, unknown>) {
   }
 }
 
+function resolveErrorMessage(status: number, payload: GeminiCompatibleResponse | null, fallbackText: string): string {
+  const payloadMessage = payload?.error?.message?.trim()
+  if (payloadMessage) return payloadMessage
+  const normalizedText = fallbackText.trim()
+  if (normalizedText) return normalizedText
+  return `Gemini compatible request failed with status ${status}`
+}
+
 export class GeminiCompatibleImageGenerator extends BaseImageGenerator {
   private readonly modelId?: string
   private readonly providerId?: string
@@ -89,10 +131,6 @@ export class GeminiCompatibleImageGenerator extends BaseImageGenerator {
     }
     await setProxy()
 
-    const ai = new GoogleGenAI({
-      apiKey: providerConfig.apiKey,
-      httpOptions: { baseUrl: providerConfig.baseUrl },
-    })
     const normalizedOptions = options as GeminiCompatibleOptions
     const parts: GeminiCompatibleContentPart[] = []
 
@@ -105,16 +143,17 @@ export class GeminiCompatibleImageGenerator extends BaseImageGenerator {
     }
     parts.push({ text: prompt })
 
+    const model = this.modelId || normalizedOptions.modelId || 'gemini-2.5-flash-image-preview'
     const requestPayload: Record<string, unknown> = {
-      model: this.modelId || normalizedOptions.modelId || 'gemini-2.5-flash-image-preview',
+      model,
       contents: [{ parts }],
       config: {
         responseModalities: ['TEXT', 'IMAGE'],
         safetySettings: [
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
         ],
         ...(normalizedOptions.aspectRatio || normalizedOptions.resolution
           ? {
@@ -125,13 +164,39 @@ export class GeminiCompatibleImageGenerator extends BaseImageGenerator {
           }
           : {}),
       },
-      ...(normalizedOptions.projectId ? { project_id: normalizedOptions.projectId } : {}),
+      ...(normalizedOptions.projectId ? { projectId: normalizedOptions.projectId, project_id: normalizedOptions.projectId } : {}),
     }
 
-    const response = await ai.models.generateContent(requestPayload as never)
+    const baseUrl = providerConfig.baseUrl.replace(/\/+$/, '')
+    const response = await fetch(`${baseUrl}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(providerConfig.apiKey ? { 'x-goog-api-key': providerConfig.apiKey } : {}),
+      },
+      body: JSON.stringify(requestPayload),
+    })
 
-    const candidate = response.candidates?.[0]
+    const responseText = await response.text()
+    let responseJson: GeminiCompatibleResponse | null = null
+    if (responseText) {
+      try {
+        responseJson = JSON.parse(responseText) as GeminiCompatibleResponse
+      } catch {
+        responseJson = null
+      }
+    }
+
+    if (!response.ok) {
+      throw new Error(resolveErrorMessage(response.status, responseJson, responseText))
+    }
+
+    const candidate = responseJson?.candidates?.[0]
     const responseParts = candidate?.content?.parts || []
+    const flowProjectId = responseJson?.performance?.project_id?.trim() || undefined
+    const editId = responseJson?.editId?.trim() || responseJson?.performance?.edit_id?.trim() || responseJson?.generatedAssets?.edit_id?.trim() || undefined
+    const editUrl = responseJson?.editUrl?.trim() || responseJson?.performance?.edit_url?.trim() || responseJson?.generatedAssets?.edit_url?.trim() || undefined
+    const editIdCaptureFailed = Boolean(responseJson?.editIdCaptureFailed || responseJson?.performance?.edit_id_capture_failed || responseJson?.generatedAssets?.edit_id_capture_failed)
     for (const part of responseParts) {
       if (part.inlineData?.data) {
         const mimeType = part.inlineData.mimeType || 'image/png'
@@ -140,6 +205,10 @@ export class GeminiCompatibleImageGenerator extends BaseImageGenerator {
           success: true,
           imageBase64,
           imageUrl: `data:${mimeType};base64,${imageBase64}`,
+          flowProjectId,
+          editId,
+          editUrl,
+          editIdCaptureFailed,
         }
       }
       if (part.fileData?.fileUri) {
@@ -152,11 +221,19 @@ export class GeminiCompatibleImageGenerator extends BaseImageGenerator {
             success: true,
             imageBase64: parsed.base64,
             imageUrl: base64DataUrl,
+            flowProjectId,
+            editId,
+            editUrl,
+            editIdCaptureFailed,
           }
         }
         return {
           success: true,
           imageUrl,
+          flowProjectId,
+          editId,
+          editUrl,
+          editIdCaptureFailed,
         }
       }
     }
