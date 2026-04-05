@@ -1,4 +1,5 @@
 import { logInfo as _ulogInfo, logError as _ulogError } from '@/lib/logging/core'
+import { saveFlowMediaHistory } from '@/lib/flow-media-history'
 
 /**
  * 统一异步任务轮询模块
@@ -465,6 +466,32 @@ async function pollBridgeTask(
         if (!assetId) {
             return { status: 'failed', error: 'BRIDGE task completed without asset_id' }
         }
+
+        // Extract input_media_ids from the bridge response and persist to history
+        const projectId = typeof payload?.project_id === 'string' ? payload.project_id : ''
+        const inputMediaIds: string[] = Array.isArray(payload?.result?.input_media_ids)
+            ? (payload.result.input_media_ids as unknown[]).filter((v): v is string => typeof v === 'string')
+            : []
+        if (projectId && inputMediaIds.length > 0) {
+            const mediaType = type === 'VIDEO' ? 'VIDEO' as const : 'IMAGE' as const
+            const taskModel = typeof payload?.model === 'string' ? payload.model : undefined
+            const taskPrompt = typeof payload?.prompt === 'string' ? payload.prompt : undefined
+            try {
+                await saveFlowMediaHistory(
+                    inputMediaIds.map((flowMediaId) => ({
+                        flowProjectId: projectId,
+                        mediaType,
+                        flowMediaId,
+                        sourceTaskId: taskId,
+                        model: taskModel,
+                        prompt: taskPrompt,
+                    })),
+                )
+            } catch (e) {
+                _ulogError(`[Poll] Failed to save flow media history for task ${taskId}: ${getErrorMessage(e)}`)
+            }
+        }
+
         const assetResponse = await fetch(`${baseUrl}/v1/assets/${encodeURIComponent(assetId)}`, {
             headers: {
                 Authorization: `Bearer ${config.apiKey}`,

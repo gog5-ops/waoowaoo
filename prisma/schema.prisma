@@ -975,6 +975,23 @@ model MediaObject {
   @@map("media_objects")
 }
 
+model FlowMediaHistory {
+  id             String   @id @default(uuid())
+  flowProjectId  String
+  mediaType      String   // IMAGE | VIDEO
+  flowMediaId    String
+  sourceTaskId   String?
+  prompt         String?  @db.Text
+  model          String?
+  createdAt      DateTime @default(now())
+
+  @@index([flowProjectId])
+  @@index([flowMediaId])
+  @@index([sourceTaskId])
+  @@index([flowProjectId, mediaType])
+  @@map("flow_media_history")
+}
+
 model LegacyMediaRefBackup {
   id          String   @id @default(uuid())
   runId       String
