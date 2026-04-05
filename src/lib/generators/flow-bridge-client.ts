@@ -57,6 +57,7 @@ export async function createFlowBridgeImageTask(params: {
   prompt: string
   projectId?: string
   referenceImages?: string[]
+  referenceMediaIds?: string[]
   options?: Record<string, unknown>
 }): Promise<GenerateResult> {
   const model = typeof params.modelId === 'string' && params.modelId.trim()
@@ -70,6 +71,25 @@ export async function createFlowBridgeImageTask(params: {
     provider: params.providerId,
   }
 
+
+  // Media reuse: if we have flow media IDs, pass them directly without re-uploading
+  if (Array.isArray(params.referenceMediaIds) && params.referenceMediaIds.length > 0 && (!Array.isArray(params.referenceImages) || params.referenceImages.length === 0)) {
+    return await postBridgeTask({
+      userId: params.userId,
+      providerId: params.providerId,
+      path: '/v1/images/edit',
+      externalType: 'IMAGE',
+      body: {
+        project_id: projectId,
+        model,
+        prompt: params.prompt,
+        reference_media_ids: params.referenceMediaIds,
+        storage: { gcs: true },
+        metadata,
+      },
+    })
+  }
+
   if (Array.isArray(params.referenceImages) && params.referenceImages.length > 0) {
     return await postBridgeTask({
       userId: params.userId,
@@ -81,6 +101,7 @@ export async function createFlowBridgeImageTask(params: {
         model,
         prompt: params.prompt,
         reference_images: params.referenceImages.map((url) => ({ url })),
+        ...(Array.isArray(params.referenceMediaIds) && params.referenceMediaIds.length > 0 ? { reference_media_ids: params.referenceMediaIds } : {}),
         storage: { gcs: true },
         metadata,
       },
