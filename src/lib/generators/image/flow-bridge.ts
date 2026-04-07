@@ -13,6 +13,10 @@ export class FlowBridgeImageGenerator extends BaseImageGenerator {
 
   protected async doGenerate(params: ImageGenerateParams): Promise<GenerateResult> {
     const { userId, prompt, referenceImages = [], options = {} } = params
+    const rawReferenceMediaIds = (options as { referenceMediaIds?: unknown }).referenceMediaIds
+    const referenceMediaIds = Array.isArray(rawReferenceMediaIds)
+      ? rawReferenceMediaIds.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : undefined
     return await createFlowBridgeImageTask({
       userId,
       providerId: this.providerId || 'flow-bridge',
@@ -20,6 +24,7 @@ export class FlowBridgeImageGenerator extends BaseImageGenerator {
       prompt,
       projectId: typeof options.projectId === 'string' ? options.projectId : undefined,
       referenceImages,
+      referenceMediaIds: referenceMediaIds && referenceMediaIds.length > 0 ? referenceMediaIds : undefined,
       options,
     })
   }

@@ -18,6 +18,7 @@ import { isTaskActive, trySetTaskExternalId } from '@/lib/task/service'
 import { type TaskJobData } from '@/lib/task/types'
 import { reportTaskProgress } from './shared'
 import { prisma } from '@/lib/prisma'
+import { getPreferredFlowMediaId, recordFlowMediaHistory, type FlowMediaResourceType } from '@/lib/flow-media-history'
 
 const DEFAULT_POLL_TIMEOUT_MS = Number.parseInt(process.env.WORKER_EXTERNAL_TIMEOUT_MS || String(20 * 60 * 1000), 10)
 const DEFAULT_POLL_INTERVAL_MS = Number.parseInt(process.env.WORKER_EXTERNAL_POLL_MS || '3000', 10)
@@ -173,6 +174,8 @@ export async function resolveImageSourceFromGeneration(
       size?: string
       provider?: string
       projectId?: string
+      resourceType?: string
+      resourceId?: string
     }
     allowTaskExternalIdResume?: boolean
     pollProgress?: { start?: number; end?: number }
@@ -194,6 +197,23 @@ export async function resolveImageSourceFromGeneration(
         progressStart: params.pollProgress?.start ?? 40,
         progressEnd: params.pollProgress?.end ?? 92,
       })
+      if (
+        params.options?.provider === 'flow-bridge' &&
+        params.options?.resourceType &&
+        params.options?.resourceId &&
+        (polled.status?.inputMediaIds || polled.status?.outputMediaId)
+      ) {
+        const externalProjectIdForResume = typeof params.options?.projectId === 'string' && params.options.projectId.trim()
+          ? params.options.projectId.trim()
+          : undefined
+        await recordFlowMediaHistory({
+          resourceType: params.options.resourceType as FlowMediaResourceType,
+          resourceId: params.options.resourceId,
+          projectId: params.options.projectId || externalProjectIdForResume,
+          inputFlowMediaIds: polled.status.inputMediaIds,
+          outputFlowMediaId: polled.status.outputMediaId,
+        }).catch((err: unknown) => logger.warn({ message: 'recordFlowMediaHistory failed', error: String(err) }))
+      }
       return polled.url
     }
   }
@@ -236,12 +256,34 @@ export async function resolveImageSourceFromGeneration(
     },
   })
 
+  // Flow media reuse: if flow-bridge provider with resource context, look up a reusable media ID
+  let referenceMediaIds: string[] | undefined
+  if (
+    params.options?.provider === 'flow-bridge' &&
+    params.options?.resourceType &&
+    params.options?.resourceId
+  ) {
+    const preferredId = await getPreferredFlowMediaId({
+      resourceType: params.options.resourceType as FlowMediaResourceType,
+      resourceId: params.options.resourceId,
+      projectId: externalProjectId || params.options.projectId,
+    })
+    if (preferredId) {
+      referenceMediaIds = [preferredId]
+      logger.info({
+        message: 'flow media reuse: injecting referenceMediaIds',
+        details: { preferredId, resourceType: params.options.resourceType, resourceId: params.options.resourceId },
+      })
+    }
+  }
+
   const result = await withLogContext(
     { projectId: job.data.projectId, taskId: job.data.taskId, userId: params.userId },
     () => generateImage(params.userId, params.modelId, params.prompt, {
       ...params.options,
       ...(externalProjectId ? { projectId: externalProjectId } : {}),
       ...capabilityOptions,
+      ...(referenceMediaIds ? { referenceMediaIds } : {}),
     }),
   )
   if (!result.success) {
@@ -274,6 +316,20 @@ export async function resolveImageSourceFromGeneration(
     progressStart: params.pollProgress?.start ?? 40,
     progressEnd: params.pollProgress?.end ?? 92,
   })
+  if (
+    params.options?.provider === 'flow-bridge' &&
+    params.options?.resourceType &&
+    params.options?.resourceId &&
+    (polled.status?.inputMediaIds || polled.status?.outputMediaId)
+  ) {
+    await recordFlowMediaHistory({
+      resourceType: params.options.resourceType as FlowMediaResourceType,
+      resourceId: params.options.resourceId,
+      projectId: params.options.projectId || externalProjectId,
+      inputFlowMediaIds: polled.status.inputMediaIds,
+      outputFlowMediaId: polled.status.outputMediaId,
+    }).catch((err: unknown) => logger.warn({ message: 'recordFlowMediaHistory failed', error: String(err) }))
+  }
   logger.info({
     message: 'image source generation completed (async)',
     provider: params.options?.provider || undefined,

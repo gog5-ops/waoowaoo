@@ -32,6 +32,10 @@ export interface PollResult {
     videoUrl?: string
     downloadHeaders?: Record<string, string>
     error?: string
+    // flow-bridge media reuse tracking: populated when polling a BRIDGE task
+    // so upstream callers can record FlowMediaHistory entries.
+    inputMediaIds?: string[]
+    outputMediaId?: string
 }
 
 function getErrorMessage(error: unknown): string {
@@ -481,9 +485,36 @@ async function pollBridgeTask(
         if (!resultUrl) {
             return { status: 'failed', error: 'BRIDGE asset missing public_url/source_url' }
         }
+
+        // Extract media reuse tracking fields from bridge response.
+        // Bridge may return these either on the task payload (payload.result / payload.input_media_ids)
+        // or on the asset payload. We check both locations.
+        const extractMediaIds = (value: unknown): string[] | undefined => {
+            if (!Array.isArray(value)) return undefined
+            const cleaned = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+            return cleaned.length > 0 ? cleaned : undefined
+        }
+        const extractMediaId = (value: unknown): string | undefined => {
+            return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
+        }
+        const inputMediaIds =
+            extractMediaIds(payload?.result?.input_media_ids)
+            ?? extractMediaIds(payload?.input_media_ids)
+            ?? extractMediaIds(assetPayload?.input_media_ids)
+        const outputMediaId =
+            extractMediaId(payload?.result?.flow_media_id)
+            ?? extractMediaId(payload?.result?.output_media_id)
+            ?? extractMediaId(payload?.flow_media_id)
+            ?? extractMediaId(assetPayload?.flow_media_id)
+            ?? extractMediaId(assetPayload?.media_id)
+
+        const extras = {
+            ...(inputMediaIds ? { inputMediaIds } : {}),
+            ...(outputMediaId ? { outputMediaId } : {}),
+        }
         return type === 'VIDEO'
-            ? { status: 'completed', resultUrl, videoUrl: resultUrl }
-            : { status: 'completed', resultUrl, imageUrl: resultUrl }
+            ? { status: 'completed', resultUrl, videoUrl: resultUrl, ...extras }
+            : { status: 'completed', resultUrl, imageUrl: resultUrl, ...extras }
     }
 
     return { status: 'pending' }
