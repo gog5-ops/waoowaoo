@@ -938,6 +938,27 @@ model GlobalVoice {
   @@map("global_voices")
 }
 
+model FlowMediaHistory {
+  id                String   @id @default(uuid())
+  resourceType      String   @db.VarChar(64)
+  resourceId        String   @db.VarChar(128)
+  projectId         String   @db.VarChar(128)
+  flowMediaId       String   @db.VarChar(191)
+  role              String   @db.VarChar(32)
+  parentFlowMediaId String?  @db.VarChar(191)
+  sourceImageUrl    String?  @db.Text
+  isCurrent         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+
+  @@unique([resourceType, resourceId, projectId, flowMediaId, role])
+  @@index([resourceType, resourceId, projectId, role, isCurrent])
+  @@index([flowMediaId])
+  @@index([parentFlowMediaId])
+  @@index([createdAt])
+  @@map("flow_media_histories")
+}
+
 model MediaObject {
   id         String   @id @default(uuid())
   publicId   String   @unique

@@ -9,8 +9,10 @@ waoowaoo 是一款 AI 影视 Studio，支持从小说文本自动生成分镜、
 | 角色 | 负责 |
 |------|------|
 | **用户（产品方向）** | 描述需求、最终决策 |
-| **Claude（PM/架构）** | 拆解需求、写 Issue spec、review PR、评估完成度 |
-| **Codex（开发执行）** | 实现功能、写代码、开 PR |
+| **Claude（PM + 开发）** | 拆解需求、写 Issue spec、**云端/本地执行开发**、review PR、评估完成度 |
+| **Codex** | 备用执行器，跨 session 持久或长时间后台任务可选用 |
+
+遵循项目级 `D:\aitools\CLAUDE.md`：云端开发为主（claude.ai/code 或 `claude --remote`），本地 Team 做 VM/smoke test，Codex 只是备用。
 
 ---
 
@@ -21,13 +23,13 @@ waoowaoo 是一款 AI 影视 Studio，支持从小说文本自动生成分镜、
     ↓
 Claude 创建 GitHub Issue（含 spec + 验收标准 + 测试要求）
     ↓
-Codex 从 dev 切 feat/xxx 分支
+Claude 从 dev 切 feat/xxx 分支（云端或本地）
     ↓
-Codex 先写测试（红）→ 实现功能（绿）→ 重构
+Claude 先写测试（红）→ 实现功能（绿）→ 重构
     ↓
 git push → GitHub → VM 自动同步测试
     ↓
-Claude review PR（逐条对照验收标准）
+Claude self-review PR（逐条对照验收标准），双引擎 auto-review（@claude + Codex via sub2api）
     ↓
 用户确认 → merge 到 dev
     ↓
@@ -38,11 +40,12 @@ Claude review PR（逐条对照验收标准）
 
 ## 本地开发原则
 
-- **本地只保存代码，不运行任何服务或测试**
+- **本地只保存代码，不运行任何服务或集成测试**
 - 不需要在本地安装 MySQL / Redis / MinIO
 - 不需要在本地跑 `docker-compose`
-- Codex 在本地修改代码后直接 push，测试在 VM 上执行
-- 可以在 push 前运行静态检查：`npm run typecheck` / `npm run lint`
+- Claude/Codex 在本地修改代码后直接 push，集成测试在 VM 上执行
+- push 前必须运行静态检查：`npm run typecheck` / `npm run lint`
+- 单元测试（纯函数/mock）可以在本地跑：`npm run test:unit` 或 `npx vitest run <path>`
 
 ---
 
