@@ -1,0 +1,144 @@
+name: Auto Code Review
+
+# PR 创建时自动触发双引擎 review:
+# 1. @claude — 深度 code review（需安装 Claude GitHub App）
+# 2. Codex — diff 摘要 + 风险评估（需 OPENAI_API_KEY secret）
+# 复制到各子仓库 .github/workflows/auto-review.yml
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Request Claude review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          EXISTING=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+            --jq '[.[] | select(.body | contains("@claude"))] | length' 2>/dev/null || echo "0")
+
+          if [ "$EXISTING" = "0" ]; then
+            gh pr comment "$PR_NUMBER" --body "@claude Please review this PR. Check for:
+          - Code quality and correctness
+          - Potential bugs or edge cases
+          - Test coverage for changes
+          - Consistency with existing patterns
+          - Any security concerns
+
+          Post your review as a PR review with inline comments where applicable."
+            echo "Claude review requested"
+          else
+            echo "Claude review already requested"
+          fi
+
+  codex-review:
+    runs-on: ubuntu-latest
+    if: |
+      github.event.pull_request.draft == false &&
+      vars.ENABLE_CODEX_REVIEW == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr diff "$PR_NUMBER" > /tmp/pr_diff.txt
+          echo "Diff size: $(wc -l < /tmp/pr_diff.txt) lines"
+
+          # Truncate if too large (API token limit)
+          head -2000 /tmp/pr_diff.txt > /tmp/pr_diff_truncated.txt
+
+      - name: Codex review
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          DIFF=$(cat /tmp/pr_diff_truncated.txt)
+
+          REVIEW=$(curl -s --max-time 60 "${OPENAI_BASE_URL}/v1/chat/completions" \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$(python3 -c "
+          import json, sys
+
+          diff = open('/tmp/pr_diff_truncated.txt').read()
+          title = '''$PR_TITLE'''
+          body = '''$PR_BODY'''
+
+          prompt = f'''You are a code reviewer. Review this PR diff and provide:
+
+          1. **Summary**: What this PR does (2-3 sentences)
+          2. **Risk Assessment**: Low/Medium/High with explanation
+          3. **Issues Found**: List any bugs, logic errors, or concerns (or 'None found')
+          4. **Suggestions**: Improvements or best practices (keep brief)
+
+          PR Title: {title}
+          PR Description: {body[:500]}
+
+          Diff:
+          {diff[:8000]}'''
+
+          payload = {
+              'model': 'gpt-4o',
+              'messages': [{'role': 'user', 'content': prompt}],
+              'max_tokens': 1500,
+              'temperature': 0.3
+          }
+          print(json.dumps(payload))
+          ")" | python3 -c "
+          import sys, json
+          try:
+              resp = json.load(sys.stdin)
+              print(resp['choices'][0]['message']['content'])
+          except Exception as e:
+              print(f'Codex review failed: {e}')
+          ")
+
+          echo "$REVIEW"
+          echo "REVIEW<<EOF" >> $GITHUB_ENV
+          echo "$REVIEW" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Post Codex review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW: ${{ env.REVIEW }}
+        run: |
+          # Check for existing codex review comment
+          EXISTING=$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            --jq '[.[] | select(.body | startswith("## 🤖 Codex Review"))] | length' 2>/dev/null || echo "0")
+
+          BODY="## 🤖 Codex Review
+
+          $REVIEW
+
+          ---
+          *Automated review by Codex (gpt-4o). See @claude review for detailed code analysis.*"
+
+          if [ "$EXISTING" = "0" ]; then
+            gh pr comment "$PR_NUMBER" --body "$BODY"
+          else
+            COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+              --jq '[.[] | select(.body | startswith("## 🤖 Codex Review"))][0].id' 2>/dev/null)
+            gh api "repos/${{ github.repository }}/issues/comments/$COMMENT_ID" \
+              -X PATCH --field body="$BODY" > /dev/null
+          fi
